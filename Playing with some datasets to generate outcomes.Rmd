@@ -1,0 +1,544 @@
+RAGHVENDRA SINGH SHAKTAWAT
+
+PLAYING WITH SOME DATASETS TO GENERATE OUTCOMES
+
+```{r}
+library(tidyverse)
+library(gsheet)
+library(class)
+library(gmodels)
+library(caret)
+library(ISLR)
+library(zoo)
+library(forecast)
+library(lubridate)
+```
+
+
+```{r}
+setwd("C:/Users/raghv/Downloads")
+taxi_df <- read.csv("yellow_tripdata_2020-06.csv", header = TRUE)
+head(taxi_df)
+```
+
+
+```{r}
+str(taxi_df)
+```
+
+```{r}
+summary(taxi_df)
+```
+
+
+Here to find out the outliers, I have tried checking the percentage of the value in the trip distance. I found that trip less than 25 miles has 99.63% of the data  but when we obeserve taking less than 30 the percentage is more and has near mean value but I feel taking more trip distance values might skew the value of mean. I have filtered the data taking trip distance less than 25 and plot a box plot to identify the outliers and then plot a histogram.
+
+```{r}
+histogram_df <- taxi_df[taxi_df$trip_distance < 20,]
+```
+
+```{r}
+hist(histogram_df$trip_distance, freq=F, col = "green")
+{lines(seq(0, 20), dnorm(seq(0, 20), mean(histogram_df$trip_distance), sd(histogram_df$trip_distance)), col="red")}
+```
+
+Also, I created a histogram of the column trip_distance. I first took the data from trip_distance column with values that are less than 20 so that a wider range of data can be presented in the histogram. Then, I plotted the histogram of the trip distance column and overlaid a normal curve on it.
+
+
+Kolmogorov-Smirnof test
+
+```{r}
+ks.test(taxi_df$trip_distance, "pnorm", mean = mean(taxi_df$trip_distance), sd = sd(taxi_df$trip_distance))
+```
+
+Here, I used the Kolmogorov-Smirnof test and founded that the values are less than 0.5. Initially, I thought of going for the Shapiro-Wilk test but it restricted me to 5000 values and the data set here is much larger than that. Therefore, I opted to go with Kolmogorov-Smirnof test.
+
+
+```{r}
+Zscore <- function(column) {
+    z <- abs((mean(column) - column) / sd(column))
+}
+```
+
+```{r}
+new_columns <- c("trip_distance","fare_amount","tip_amount","tolls_amount","total_amount","congestion_surcharge")
+```
+
+```{r}
+for (column in new_columns) {
+    z <- Zscore(taxi_df[[column]])
+    taxi_df[[paste('z.score.', column, sep = '')]] = z}
+head(taxi_df)
+```
+
+
+In order to find the outliers of the column using the z-score deviation approach, I applied the use of function below to determine the z-score values of multiple columns. This is because it becomes a very cumbersome process to find the z-value of each column individually and thus the use of function here makes the work much more organized. Here, I considered those values as outliers that are more than 2 standard deviations from the mean. I would prefer to remove the outliers from the data set after finding the z-score value so as to make the data set more structured and organized. I also founded the outliers individually for multiple columns of this data set and plotted visualizations to indicate them below.
+
+
+```{r}
+a <- taxi_df$trip_distance
+summary(a)
+m <- mean(a)
+sd <- sd(a)
+z <- (m - a)/sd
+z <- abs(z)
+o <- which(z>2)
+a[o]
+
+ggplot(taxi_df, aes(trip_distance)) + geom_boxplot(outlier.colour = "blue", color = "orange") + labs(x = "trip_distance")
+```
+
+Here, the maximum outlier value is 220386 and it is evident in the visualization as well. 
+
+```{r}
+b <- taxi_df$fare_amount
+summary(b)
+m <- mean(b)
+sd <- sd(b)
+z <- (m - b)/sd
+z <- abs(z)
+o <- which(z>2)
+head(b[o])
+
+ggplot(taxi_df, aes(fare_amount)) + geom_boxplot(outlier.colour = "red", color = "orange") + labs(x = "fare_amount")
+```
+
+Here, the maximum outlier value is 941.50 and it is evident in the visualization as well. 
+
+```{r}
+c <- taxi_df$tip_amount
+summary(c)
+m <- mean(c)
+sd <- sd(c)
+z <- (m - c)/sd
+z <- abs(z)
+o <- which(z>2)
+head(c[o])
+
+ggplot(taxi_df, aes(tip_amount)) + geom_boxplot(outlier.colour = "green", color = "orange") + labs(x = "tip_amount")
+```
+
+Here, the maximum outlier value is 422.680  and it is evident in the visualization as well. 
+
+```{r}
+d <- taxi_df$tolls_amount
+summary(d)
+m <- mean(d)
+sd <- sd(d)
+z <- (m - d)/sd
+z <- abs(z)
+o <- which(z>2)
+head(d[o])
+
+ggplot(taxi_df, aes(tolls_amount)) + geom_boxplot(outlier.colour = "pink", color = "orange") + labs(x = "tolls_amount")
+
+```
+
+Here, the maximum outlier value is 114.7500 and it is evident in the visualization as well. 
+
+
+```{r}
+e <- taxi_df$total_amount
+summary(e)
+m <- mean(e)
+sd <- sd(e)
+z <- (m - e)/sd
+z <- abs(z)
+o <- which(z>2)
+head(e[o])
+
+ggplot(taxi_df, aes(total_amount)) + geom_boxplot(outlier.colour = "brown", color = "orange") + labs(x = "total_amount")
+```
+
+Here, the maximum outlier value is 1141.10  and it is evident in the visualization as well. 
+
+
+```{r}
+taxi_DF <- taxi_df %>% mutate(trip_time = as.numeric(difftime(tpep_dropoff_datetime, (tpep_pickup_datetime), units = 'mins')))
+head(taxi_DF)
+```
+
+Now, I created a new column named trip_time that calculated the time duration in minutes from where the passenger was picked to the time when the passenger was dropped. I also used the mutate verb here to find the time in minutes.
+
+
+Removing the negative values from the original data frame. 
+```{r}
+taxi_DF_new <- taxi_DF %>%
+            filter(fare_amount >= 0)
+head(taxi_DF_new)
+```
+
+In order to remove the negative values from the column fare_amount, I applied the use of the filter function to consider only those values that are greater than or equal to zero, thereby automatically counting out the negative values.
+
+
+```{r}
+new_taxi <- taxi_DF %>%
+  add_column(tip_level = ifelse(taxi_DF$tip_amount > 10, '3',
+                          ifelse(taxi_DF$tip_amount > 5, '2', 
+                          ifelse(taxi_DF$tip_amount > 0, '1',0))))
+head(new_taxi)
+```
+
+Now, I created a new data set (taxi_data_full) by using the if else function to determine the tip level i.e., 3 if tip_amount > 10; 2 if tip_amount > 5; 1 if tip_amount > 0; 0 otherwise). I also added the columns fare_amount, trip_distance, trip_time, congestion_surcharge, payment_type to the data frame. The newly created data set can be seen below
+
+```{r}
+taxi_data_full <- new_taxi %>% select(tip_level, fare_amount, trip_distance, trip_time, congestion_surcharge, payment_type)
+head(taxi_data_full)
+```
+
+
+```{r}
+Z_score <- function(column) {
+    z_s <- abs((mean(column) - column) / sd(column))
+}
+```
+
+```{r}
+new_columns <- c("fare_amount", "trip_distance","trip_time","congestion_surcharge")
+```
+
+```{r}
+for (column in new_columns) {
+    z_s <- Z_score(taxi_data_full[[column]])
+    taxi_data_full[[paste('z.score.', column, sep = '')]] = z_s}
+head(taxi_data_full)
+```
+
+```{r}
+updated_taxi <- taxi_data_full %>% select(tip_level, z.score.fare_amount, z.score.trip_distance, z.score.trip_time, z.score.congestion_surcharge, payment_type)
+head(updated_taxi)
+```
+
+Now, I used the z-score standardization to standardize the scales of the numeric columns. I did not include the categorical features such as tip_level and payment_type that are numerically encoded. I took the help of function to find z-score standardized values of multiple columns of the data set and thus the use of function here makes the work much more organized.
+
+
+```{r}
+taxi_updated <- updated_taxi[!is.na(taxi_data_full$payment_type),]
+dim(taxi_updated)
+```
+
+```{r}
+index_train <- createDataPartition(taxi_updated$payment_type, p = 0.15, list = FALSE)
+
+validation_data_set <- taxi_updated[index_train,]
+training_data_set <- taxi_updated[-index_train,]
+
+dim(training_data_set)
+dim(validation_data_set)
+```
+
+For sorting out the data, I I used .85 or 85% of values for the training set and assigned the remaining 15% or .15 of values for each payment type to be part of the validation data set. The two separate data frames of training and validation data set can be seen below as I have mentioned the dimensions of them. The training data set has dimensions of 424186 rows and 6 columns whereas the validation data set possess 74857 rows and 6 columns.
+
+
+
+Use only the training data set. Note that you need to normalize the values of the new cases the same way as you normalized the original data. If the data set is too large to handle on your computer, then create a smaller training data set by randomly sampling the original data set.
+
+```{r}
+new_case <- data.frame("fare_amount" = 17.5, "trip_distance" = 4.8, "trip_time" = 28, "congestion_surcharge" = 2.5, "payment_type" = 1)
+new_case
+```
+
+I first created a new data frame with the columns and their values.
+
+```{r}
+fare_amount_z_score <- abs((mean(taxi_data_full$fare_amount) - new_case$fare_amount) / sd(taxi_data_full$fare_amount))
+fare_amount_z_score
+
+trip_distance_z_score <- abs((mean(taxi_data_full$trip_distance) - new_case$trip_distance) / sd(taxi_data_full$trip_distance))
+trip_distance_z_score
+
+trip_time_z_score <- abs((mean(taxi_data_full$trip_time) - new_case$trip_time) / sd(taxi_data_full$trip_time))
+trip_time_z_score
+
+congestion_surcharge_z_score <- abs((mean(taxi_data_full$congestion_surcharge) - new_case$congestion_surcharge) / sd(taxi_data_full$congestion_surcharge))
+congestion_surcharge_z_score
+```
+
+```{r}
+new_case[[paste('fare_amount_z_score')]] = fare_amount_z_score
+new_case[[paste('trip_distance_z_score')]] = trip_distance_z_score
+new_case[[paste('trip_time_z_score')]] = trip_time_z_score
+new_case[[paste('congestion_surcharge_z_score')]] = congestion_surcharge_z_score
+```
+
+Here, I found the z score values of the fair_amount, trip_distance, trip_type and congestion_surcharge columns and pasted those z values into the new_case data frame so as to merge all of them. Now, I will select the required columns and assign it a new name standard_un. 
+
+```{r}
+updated_un <- new_case %>% select(fare_amount_z_score, trip_distance_z_score, trip_time_z_score, congestion_surcharge_z_score, payment_type)
+updated_un
+```
+
+Now, the first step that I performed is creation of this function is to find the eucledian distance between the value of training set and test set of the training dataset. To build a generic function for this, I used a loop to find the distance between p and q, where p represents the value of training set. Here, I used the distance (d) as 0. Then, I used the loop from i, from 1 to the length of p by assuming that both p and q are of same length. Then, I took the difference between the current dimensions and took the square root of them as per the rule of eucledian distance method.
+
+```{r}
+training <- training_data_set
+u <- updated_un
+
+dist <- function(p,q)
+{
+  d <- 0
+  for (i in 1:length(p)) {
+    d <- d + (p[i] - q[i])^2
+  }
+  dist <- sqrt(d)
+  dist <- dist[[1]]
+}
+
+neighbors <- function(training, u)
+{
+  m <- nrow(training)
+  ds <- numeric(m)
+  for (i in 1:m) {
+    p <- training[i, c(2:6)]
+    q <- as.numeric(u[c(1:5)])
+    ds[i] <- dist(p,q)
+  }
+  neighbors <- ds
+}
+```
+
+Later, I wrote a function for neighbours which is going to give me a vector of neighbours’ distance. Later, I calculated the number of rows in the dataset and also created a temporary vector of them. Then, I used the loop from i, from 1 to the length of m.
+
+```{r}
+knn_neighbors <- neighbors(training, u)
+
+k.closest <- function(neighbors,k){
+  ordered.neighbors <- order(neighbors)
+  k.closest <- ordered.neighbors[1:k]
+}
+#Determining the mode
+Mode <- function(x){
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+```
+
+Here, I wrote the function for determining the K closest neighbor based on the neighbors through which I can find k.closest value. I also used a function for the mode to determine the value that returns more frequently, for the closest ones.
+
+```{r}
+knn <- function(training, u, k)
+{
+  n <- as.numeric(nrow(u))
+  for(i in 1:n) {
+  nb <- neighbors(training,u)
+  f <- k.closest(nb,k)
+  knn <- Mode(training$tip_level[f]) 
+  }
+ return(n) 
+}
+```
+
+```{r}
+output <- knn(training, u, 5)
+output
+
+```
+
+
+
+```{r}
+training_class_data <- training_data_set[,2:6]
+a <- training_data_set[1:424186,1]
+class::knn(training_class_data, updated_un, cl = a, k = 5, prob = FALSE, use.all = TRUE)
+```
+
+This is a continuation from above as I first used the training data set and removed the first column of it which did not count to the numerical value.
+
+Later, I selected all the rows of the training data set and applied the knn function from the class package with a k value of 5.
+
+
+```{r}
+acc <- 100
+knn <- vector()
+ for (i in seq(2,8,1)) {
+   knn[i] <- knn(training_class_data, updated_un ,cl = a , k = i)
+   acc[i] <- 100 * sum(a == knn[i])/NROW(a)}
+  acc <- acc[2:8]
+  k_acc <- data.frame(k = c(2:8), accuracy = acc)
+```
+
+```{r}
+ggplot(k_acc, aes(k, accuracy, group = 1)) + geom_point(color = "red") + geom_line(color = "green")
+```
+
+
+
+Through this below dataset, I am onvestigating this data set of home prices in King County (USA)
+
+```{r}
+setwd("C:/Users/raghv/Downloads")
+house_df <- read.csv("kc_house_data.csv", header = TRUE)
+head(house_df)
+```
+
+
+```{r}
+target_data <- house_df %>% select(price)
+head(target_data)
+```
+
+```{r}
+train_data <- house_df %>% select(-id, -date, -price, -zipcode, -lat, -long, -sqft_above, -sqft_basement, -grade, -floors, -view, -waterfront, -sqft_living15, -sqft_lot15)
+head(train_data)
+```
+
+I saved the price column in a separate vector/dataframe called target_data. Moreover, I removed all the columns and formed a new data frame called train_data which can be seen above.
+
+
+```{r}
+normalize <- function(x) {
+return ((x - min(x)) / (max(x) - min(x)))
+}
+training_data<- as.data.frame(lapply(train_data[c("bedrooms", "bathrooms",  "sqft_living", "sqft_lot","condition", "yr_built", "yr_renovated")], normalize))
+head(train_data)
+```
+
+Then, I normalized all of the numeric columns in train_data using min-max normalization. I did that with the help of function and the values that are normalized is displayed in the data frame below.
+
+
+
+Now, I will build a function called knn.reg that implements a regression version of kNN that averages the prices of the k nearest neighbors using a weighted average where the weight is 3 for the closest neighbor, 2 for the second closest and 1 for the remaining neighbors. It must return the predicted price.
+
+```{r}
+set.seed(800)
+samp_size <- floor(0.85 * nrow(train_data))
+train_set <- sample(seq_len(nrow(train_data)), size = samp_size)
+train_house_data <- train_data[train_set,]
+random_test_data <- train_data[-train_set,]
+```
+
+Here, I adopted the use of set.seed command to randomly distribute the values and used training data set of 85% value.
+
+```{r}
+dist <- function(p,q){
+d <- 0
+for (i in 1:length(p)) {
+d <- d + (p[i] - q[i])^2}
+dist <- sqrt(d)}
+
+neighbors <- function (train, y){
+ds <- numeric(nrow(train))
+
+for (i in 1:nrow(train)){
+p <- train[i,]
+ds[i] <- dist(p,y)}
+ds <- as.vector(unlist(ds))
+return(ds)}
+```
+
+I followed the same approach of finding the euclidean distance that I followed previously and applied the for loop to the length of P. The same way, I found the neighbors and calculated the distance.
+
+```{r}
+k.closest <- function(n,value){
+ordered.neighbors <- order(n)
+kvalue <- ordered.neighbors[1:value]}
+
+predict_weight <- function(y, k_closest) 
+  {
+len <- length(k_closest)
+values <- y[k_closest,]
+sums <- values[1]*3 + values[2]*2 + sum(values[3:len]*1)
+weightss <- 3 + 2 + length(3:len)*1
+weighted_average <- sums/weightss
+}
+```
+
+```{r}
+knn.reg <- function(new_data, target_data, train_data, k)
+{
+nbrs <- neighbors(train_data, new_data)
+o <- k.closest(nbrs,k)
+weighted_mean <- predict_weight(target_data, o)
+return(weighted_mean)
+}
+```
+
+After typing the code of key closest neighbors I calculated the weighted average where the weight is 3 for the closest neighbor, 2 for the second closest and 1 for the remaining neighbors.
+
+
+
+```{r}
+new_house <- data.frame("bedrooms" = 4, "bathrooms" = 2, "sqft_living" = 2852, "sqft_lot" = 17251, "condition" = 5, "yr_built" = 1986, "yr_renovated" = 2006)
+new_house
+```
+
+Then, I first created a new data frame by the name new house and assigned the names and values to the columns.
+
+
+```{r}
+target_house_data <- target_data %>% select(price)
+knn.reg(new_data = new_house, target_data = target_house_data, train_data = train_house_data, k = 4)
+```
+
+Later, I applied the knn regression that I created to determine the value which came out to be 530471.4
+
+
+```{r}
+head(house_df)
+```
+
+```{r}
+year_df <-  extract(house_df, date, into = c("Year", "Month"),"^([0-9][0-9][0-9][0-9])(.*)", remove = FALSE)
+year_new <- year_df %>% select(Year)
+
+month_df <-  extract(year_df, Month, into = c("Month", "Year"),"^([0-9][0-9])(.*)", remove = FALSE)
+month_new <- month_df %>% select(Month)
+                                 
+avg_price <- house_df %>% mutate(avg_price_sq_ft = price/sqft_living)
+avg_price_sq_ft <- avg_price %>% select(avg_price_sq_ft)
+```
+
+```{r}
+new_data <- data.frame("tper" = 1:21613, year_new, month_new, avg_price_sq_ft)
+new_data_set <- new_data %>% arrange(Year)
+head(new_data_set)
+dim(new_data_set)
+```
+
+Finally, I created a new data set in which I evaluated different values of the columns by using different data frames and finally merged all of them to create a new data set. For the year and month column, I extracted the values from the date column of the data frame that I used above. Also, for finding the values of avg_price_sq_ft column, I used the mutate function to calculate the values of this column by dividing the values from columns price and sqft_living to each other. After doing all of this work, I merged all these data frames together to create a single data set in which all the values and columns are represented. Finally, I arranged the sales in order from least recent to most recent.
+
+```{r}
+time_series <- new_data_set %>%
+  group_by(Month, Year) %>%
+  arrange(Year) %>%
+  dplyr::summarise(average_sales_price = mean(avg_price_sq_ft))
+time_series
+time_dataset <- time_series[order(time_series$Year, time_series$Month),]
+time_dataset$Date <-as.yearmon(paste(time_dataset$Year,time_dataset$Month,sep = "-"))
+time_dataset
+```
+
+Also, to represent the data in an organized manner, I merged the year and month into a single column named Date.
+
+
+In order to plot the average sales price per month as a time series line graph, I first calculated the average value of the sales that happened per month for all the months. Later, I plotted the values in the form of a line graph with the Date represented on the x-axis and the average value of that particular month on the y-axis. 
+
+```{r}
+ggplot(time_dataset, aes(Date, average_sales_price)) + labs(y = "Average sales price") + ggtitle("Average sales price per month") + geom_point() + geom_line(group = 1, color = "red")
+```
+
+
+Finally, I am going to mark out the recent three average sales price first.
+
+```{r}
+n <- nrow(time_dataset)
+recent_three <- time_dataset[n:(n-2),3]
+recent_three
+```
+
+Here, I used weights of 4, 3, and 1 to determine the weighted moving average, 
+
+```{r}
+w <- c(4,3,1)
+sw <- w*(recent_three)
+sw
+#Finally, I divided the sum of weights with the weights to determine the forecast value.
+Forecast <- sum(sw)/sum(w)
+Forecast
+```
+
+The forecasted value which is 280.9403
+
+
+
+THANK YOU
