@@ -8,7 +8,7 @@ Some of the key features used in this work are:
 • Created visualizations using ggplots such as histogram
 • Performed Kolmogorov-Smirnof test
 • Created new columns
-• Created new datas set within the dataset
+• Created new data set within the dataset
 • Split the data into training and test set
 • Performed normalization of the data
 • Wrote the function for determining the K closest neighbor based on the neighbors through which I can find k.closest value
